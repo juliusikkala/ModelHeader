@@ -1,0 +1,7 @@
+build
+*.swp
+*.swo
+*.obj
+*.blend
+*.blend1
+*.mtl
