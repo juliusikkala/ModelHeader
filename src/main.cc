@@ -439,6 +439,7 @@ int main(int argc, char** argv)
     {
         size_t start = options.input_file.find_last_of("/\\");
         if(start == std::string::npos) start = 0;
+        else start++;
         options.name_prefix = options.input_file.substr(
             start, options.input_file.find('.', start)
         );
