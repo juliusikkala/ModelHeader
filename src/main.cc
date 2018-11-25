@@ -117,6 +117,7 @@ void write_preamble()
         << "\" */\n"
         "#ifndef MODELHEADER_MODEL_" << options.uppercase_name_prefix << "_H\n"
         "#define MODELHEADER_MODEL_" << options.uppercase_name_prefix << "_H\n"
+        "#include <stddef.h>\n"
         "#ifndef MODELHEADER_TYPES_DECLARED\n"
         "#define MODELHEADER_TYPES_DECLARED\n"
         "\n"
@@ -130,11 +131,11 @@ void write_preamble()
         "struct modelheader_node\n"
         "{\n"
         "    struct modelheader_mesh** meshes;\n"
-        "    size_t mesh_count;\n"
+        "    unsigned mesh_count;\n"
         "\n"
         "    struct modelheader_node* parent;\n"
         "    struct modelheader_node** children;\n"
-        "    size_t child_count;\n"
+        "    unsigned child_count;\n"
         "\n"
         "    float transform[16];\n"
         "};\n"
@@ -155,11 +156,9 @@ void write_node(
     aiNode* node,
     std::stringstream& nodes,
     std::stringstream& private_declaration,
-    std::stringstream& private_content,
-    bool content_first = true
+    std::stringstream& private_content
 ){
     if(!node) return;
-    if(node_count != 0) nodes << "\n";
 
     unsigned index = node_count++;
 
@@ -171,20 +170,15 @@ void write_node(
             << "    struct modelheader_mesh* meshes_"
             << index << "[" << node->mNumMeshes << "];\n";
 
-        if(!content_first) private_content << "\n";
-        else content_first = false;
-
         private_content << "    {\n";
         for(unsigned i = 0; i < node->mNumMeshes; ++i)
         {
-            if(i != 0) private_content << "\n";
             private_content
                 << "        &" << options.name_prefix << "_meshes["
-                << mesh_key.at(node->mMeshes[i]) << "],";
+                << mesh_key.at(node->mMeshes[i]) << "],\n";
         }
 
-        private_content.seekp(-1,private_content.cur);
-        private_content << "\n    },";
+        private_content << "    },\n";
 
         nodes
             << options.name_prefix << "_private_data.meshes_" << index << ", "
@@ -207,20 +201,15 @@ void write_node(
             << "    struct modelheader_node* children_"
             << index << "[" << node->mNumChildren << "];\n";
 
-        if(!content_first) private_content << "\n";
-        else content_first = false;
-
         private_content << "    {\n";
         for(unsigned i = 0; i < node->mNumChildren; ++i)
         {
-            if(i != 0) private_content << "\n";
             private_content
                 << "        &" << options.name_prefix << "_nodes["
-                << node_key.at(node->mChildren[i]) << "],";
+                << node_key.at(node->mChildren[i]) << "],\n";
         }
 
-        private_content.seekp(-1,private_content.cur);
-        private_content << "\n    },";
+        private_content << "    },\n";
         nodes
             << options.name_prefix << "_private_data.children_" << index << ", "
             << node->mNumChildren << ", ";
@@ -233,10 +222,9 @@ void write_node(
     nodes << "{";
     for(unsigned i = 0; i < 4*4; ++i)
     {
-        nodes << node->mTransformation[i/4][i%4];
-        if(i != 4*4-1) nodes << ",";
+        nodes << node->mTransformation[i/4][i%4] << ",";
     }
-    nodes << "}},";
+    nodes << "}},\n";
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
     {
@@ -247,8 +235,7 @@ void write_node(
             node->mChildren[i],
             nodes,
             private_declaration,
-            private_content,
-            content_first
+            private_content
         );
     }
 }
@@ -391,10 +378,9 @@ void write_scene(const aiScene* scene)
         }
 
         /* Add this mesh */
-        if(i != 0) meshes << "\n";
         meshes
             << "    {" << escape_string(inmesh->mName.C_Str()) << ", "
-            << start_index << ", " << size << "},";
+            << start_index << ", " << size << "},\n";
     }
 
     construct_node_key(
@@ -415,16 +401,11 @@ void write_scene(const aiScene* scene)
         private_content
     );
 
-    vertices.seekp(-1,vertices.cur);
     vertices << "\n};\n";
-    indices.seekp(-1,indices.cur);
     indices << "\n};\n";
-    meshes.seekp(-1,meshes.cur);
-    meshes << "\n};\n";
-    nodes.seekp(-1,nodes.cur);
-    nodes << "\n};\n";
-    private_content.seekp(-1,private_content.cur);
-    private_content << "\n};\n";
+    meshes << "};\n";
+    nodes << "};\n";
+    private_content << "};\n";
 
     std::cout
         << vertices.str() << "\n" << indices.str() << "\n"
