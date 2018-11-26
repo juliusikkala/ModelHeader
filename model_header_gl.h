@@ -1,7 +1,6 @@
 #ifndef MODELHEADER_GL_H
 #define MODELHEADER_GL_H
 
-#include <GL/glew.h>
 #include <stddef.h>
 #define MODELHEADER_POS 1
 #define MODELHEADER_NORMAL 2
