@@ -1,3 +1,26 @@
+/*
+The MIT License (MIT)
+
+Copyright (c) 2018 Julius Ikkala
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 #include <iostream>
 #include <sstream>
 #include <cstring>
@@ -11,8 +34,10 @@
 void print_help(const char* name)
 {
     std::cerr
-        << "Usage: " << name << " [-p] [-dnt][-n name_prefix] model_file" << std::endl
+        << "Usage: " << name << " [-p] [-dnt] [-m] [-n name_prefix] model_file"
+        << std::endl
         << "-p disables pre-transformed primitives." << std::endl
+        << "-m disables material, mesh and node information." << std::endl
         << "-d deletes parts of vertex data. 'n' removes normals, "
         << "'t' removes UV coordinates." << std::endl
         << "-n sets the default name prefix for the model." << std::endl;
@@ -26,6 +51,7 @@ struct
     bool pretransform = true;
     bool delete_normal = false;
     bool delete_uv = false;
+    bool disable_info = false;
 } options;
 
 bool parse_args(char** argv)
@@ -55,6 +81,10 @@ bool parse_args(char** argv)
             else if(arg[1] == 'p' && arg[2] == 0)
             {
                 options.pretransform = false;
+            }
+            else if(arg[1] == 'm' && arg[2] == 0)
+            {
+                options.disable_info = true;
             }
             else if(arg[1] == 'n' && arg[2] == 0)
             {
@@ -140,43 +170,46 @@ void write_preamble()
         << "\" */\n"
         "#ifndef MODELHEADER_MODEL_" << options.uppercase_name_prefix << "_H\n"
         "#define MODELHEADER_MODEL_" << options.uppercase_name_prefix << "_H\n"
-        "#include <stddef.h>\n"
+        << (options.disable_info ? "" : "#include <stddef.h>\n") <<
         "#ifndef MODELHEADER_TYPES_DECLARED\n"
         "#define MODELHEADER_TYPES_DECLARED\n"
         "#if __cplusplus >= 201103L\n"
         "#define MODELHEADER_CONST constexpr const\n"
         "#else\n"
         "#define MODELHEADER_CONST const\n"
-        "#endif\n"
-        "\n"
-        "struct modelheader_material\n"
-        "{\n"
-        "    const char* name;\n"
-        "    const char* albedo_texture;\n"
-        "    float albedo_factor[3];\n"
-        "};\n"
-        "\n"
-        "struct modelheader_mesh\n"
-        "{\n"
-        "    const char* name;\n"
-        "    const struct modelheader_material* material;\n"
-        "    unsigned start_index;\n"
-        "    unsigned size;\n"
-        "};\n"
-        "\n"
-        "struct modelheader_node\n"
-        "{\n"
-        "    const struct modelheader_mesh* const * meshes;\n"
-        "    unsigned mesh_count;\n"
-        "\n"
-        "    const struct modelheader_node* parent;\n"
-        "    const struct modelheader_node* const* children;\n"
-        "    unsigned child_count;\n"
-        "\n"
-        "    float transform[16];\n"
-        "};\n"
-        "\n"
-        "#endif\n\n";
+        "#endif\n";
+
+    if(!options.disable_info)
+    {
+        std::cout << "\n"
+            "struct modelheader_material\n"
+            "{\n"
+            "    const char* name;\n"
+            "    const char* albedo_texture;\n"
+            "    float albedo_factor[3];\n"
+            "};\n"
+            "\n"
+            "struct modelheader_mesh\n"
+            "{\n"
+            "    const char* name;\n"
+            "    const struct modelheader_material* material;\n"
+            "    unsigned start_index;\n"
+            "    unsigned size;\n"
+            "};\n"
+            "\n"
+            "struct modelheader_node\n"
+            "{\n"
+            "    const struct modelheader_mesh* const * meshes;\n"
+            "    unsigned mesh_count;\n"
+            "\n"
+            "    const struct modelheader_node* parent;\n"
+            "    const struct modelheader_node* const* children;\n"
+            "    unsigned child_count;\n"
+            "\n"
+            "    float transform[16];\n"
+            "};\n\n";
+    }
+    std::cout << "#endif\n\n";
 }
 
 void write_prologue()
@@ -473,15 +506,21 @@ void write_scene(const aiScene* scene)
         << "    const struct modelheader_node nodes[" << node_count << "];\n";
     private_content << nodes.str() <<  "};\n";
 
+    std::cout << vertices.str() << "\n" << indices.str() << "\n";
+
+    if(!options.disable_info)
+    {
+        std::cout
+            << materials.str() << "\n"
+            << meshes.str() << "\n"
+            << private_declaration.str()
+            << private_content.str() << "\n"
+            << "static MODELHEADER_CONST modelheader_node* "
+            << options.name_prefix << "_nodes = "
+            << options.name_prefix << "_private_data.nodes;\n\n";
+    }
+
     std::cout
-        << vertices.str() << "\n" << indices.str() << "\n"
-        << materials.str() << "\n"
-        << meshes.str() << "\n"
-        << private_declaration.str()
-        << private_content.str() << "\n"
-        << "static MODELHEADER_CONST modelheader_node* "
-        << options.name_prefix << "_nodes = "
-        << options.name_prefix << "_private_data.nodes;\n\n"
         << "#define " << options.name_prefix
         << "_vertex_stride " << vertex_stride << "\n"
         << "#define " << options.name_prefix
@@ -489,17 +528,21 @@ void write_scene(const aiScene* scene)
         << "#define " << options.name_prefix
         << "_index_count " << index_count << "\n"
         << "#define " << options.name_prefix
-        << "_material_count " << material_count << "\n"
-        << "#define " << options.name_prefix
-        << "_mesh_count " << mesh_count << "\n"
-        << "#define " << options.name_prefix
-        << "_node_count " << node_count << "\n"
-        << "#define " << options.name_prefix
         << "_position_offset " << position_offset << "\n"
         << "#define " << options.name_prefix
         << "_normal_offset " << normal_offset << "\n"
         << "#define " << options.name_prefix
         << "_uv0_offset " << uv0_offset << "\n";
+    if(!options.disable_info)
+    {
+        std::cout
+            << "#define " << options.name_prefix
+            << "_material_count " << material_count << "\n"
+            << "#define " << options.name_prefix
+            << "_mesh_count " << mesh_count << "\n"
+            << "#define " << options.name_prefix
+            << "_node_count " << node_count << "\n";
+    }
 }
 
 int main(int argc, char** argv)
@@ -532,15 +575,15 @@ int main(int argc, char** argv)
             ),
             options.name_prefix.end()
         );
-        options.uppercase_name_prefix = options.name_prefix;
-        std::transform(
-            options.name_prefix.begin(),
-            options.name_prefix.end(),
-            options.uppercase_name_prefix.begin(),
-            toupper
-        );
     }
 
+    options.uppercase_name_prefix = options.name_prefix;
+    std::transform(
+        options.name_prefix.begin(),
+        options.name_prefix.end(),
+        options.uppercase_name_prefix.begin(),
+        toupper
+    );
 
     Assimp::Importer importer;
     importer.SetPropertyInteger(

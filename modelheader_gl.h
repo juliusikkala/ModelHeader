@@ -1,12 +1,36 @@
+/*
+The MIT License (MIT)
+
+Copyright (c) 2018 Julius Ikkala
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 #ifndef MODELHEADER_GL_H
 #define MODELHEADER_GL_H
 
 #include <stddef.h>
+#define MODELHEADER_ATTRIB_END 0
 #define MODELHEADER_POS 1
 #define MODELHEADER_NORMAL 2
 #define MODELHEADER_UV0 3
 
-static inline void model_header_gl_load_impl(
+static inline void modelheader_gl_load_impl(
     const float* vertices,
     unsigned vertex_stride,
     unsigned vertex_count,
@@ -34,8 +58,8 @@ static inline void model_header_gl_load_impl(
     );
 }
 
-#define model_header_gl_load(model, vbo, ibo) \
-    model_header_gl_load_impl( \
+#define modelheader_gl_load(model, vbo, ibo) \
+    modelheader_gl_load_impl( \
         model ## _vertices, \
         model ## _vertex_stride, \
         model ## _vertex_count, \
@@ -45,7 +69,7 @@ static inline void model_header_gl_load_impl(
         ibo \
     )
 
-static inline void model_header_gl_set_vertex_attribs_impl(
+static inline void modelheader_gl_set_vertex_attribs_impl(
     unsigned vertex_stride,
     int position_offset,
     int normal_offset,
@@ -56,10 +80,10 @@ static inline void model_header_gl_set_vertex_attribs_impl(
         MODELHEADER_POS, 0,
         MODELHEADER_NORMAL, 1,
         MODELHEADER_UV0, 2,
-        0
+        MODELHEADER_ATTRIB_END
     };
     if(!locations) locations = default_locations;
-    while(*locations != 0)
+    while(*locations != MODELHEADER_ATTRIB_END)
     {
         long long offset = -1;
         int size = 0;
@@ -92,8 +116,8 @@ static inline void model_header_gl_set_vertex_attribs_impl(
     }
 }
 
-#define model_header_gl_set_vertex_attribs(model, locations) \
-    model_header_gl_set_vertex_attribs_impl( \
+#define modelheader_gl_set_vertex_attribs(model, locations) \
+    modelheader_gl_set_vertex_attribs_impl( \
         model ## _vertex_stride, \
         model ## _position_offset, \
         model ## _normal_offset, \
@@ -103,7 +127,7 @@ static inline void model_header_gl_set_vertex_attribs_impl(
 
 #ifndef MODELHEADER_DISABLE_VAO
 
-static inline void model_header_gl_load_vao_impl(
+static inline void modelheader_gl_load_vao_impl(
     const float* vertices,
     unsigned vertex_stride,
     unsigned vertex_count,
@@ -120,7 +144,7 @@ static inline void model_header_gl_load_vao_impl(
     glGenVertexArrays(1, vao);
     glBindVertexArray(*vao);
 
-    model_header_gl_load_impl(
+    modelheader_gl_load_impl(
         vertices,
         vertex_stride,
         vertex_count,
@@ -130,7 +154,7 @@ static inline void model_header_gl_load_vao_impl(
         ibo
     );
 
-    model_header_gl_set_vertex_attribs_impl(
+    modelheader_gl_set_vertex_attribs_impl(
         vertex_stride,
         position_offset,
         normal_offset,
@@ -141,8 +165,8 @@ static inline void model_header_gl_load_vao_impl(
     glBindVertexArray(0);
 }
 
-#define model_header_gl_load_vao(model, vbo, ibo, vao, locations) \
-    model_header_gl_load_vao_impl( \
+#define modelheader_gl_load_vao(model, vbo, ibo, vao, locations) \
+    modelheader_gl_load_vao_impl( \
         model ## _vertices, \
         model ## _vertex_stride, \
         model ## _vertex_count, \
