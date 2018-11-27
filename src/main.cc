@@ -11,8 +11,10 @@
 void print_help(const char* name)
 {
     std::cerr
-        << "Usage: " << name << " [-p] [-n name_prefix] model_file" << std::endl
+        << "Usage: " << name << " [-p] [-dnt][-n name_prefix] model_file" << std::endl
         << "-p disables pre-transformed primitives." << std::endl
+        << "-d deletes parts of vertex data. 'n' removes normals, "
+        << "'t' removes UV coordinates." << std::endl
         << "-n sets the default name prefix for the model." << std::endl;
 }
 
@@ -22,6 +24,8 @@ struct
     std::string name_prefix;
     std::string uppercase_name_prefix;
     bool pretransform = true;
+    bool delete_normal = false;
+    bool delete_uv = false;
 } options;
 
 bool parse_args(char** argv)
@@ -61,6 +65,25 @@ bool parse_args(char** argv)
                     goto fail;
                 }
                 options.name_prefix = *argv;
+            }
+            else if(arg[1] == 'd')
+            {
+                for(unsigned i = 2; arg[i] != 0; ++i)
+                {
+                    switch(arg[i]) 
+                    {
+                    case 'n':
+                        options.delete_normal = true;
+                        break;
+                    case 't':
+                        options.delete_uv = true;
+                        break;
+                    default:
+                        std::cerr << "Unknown vertex attribute \""
+                            << arg[i] << "\"" << std::endl;
+                        goto fail;
+                    }
+                }
             }
             else
             {
@@ -120,6 +143,11 @@ void write_preamble()
         "#include <stddef.h>\n"
         "#ifndef MODELHEADER_TYPES_DECLARED\n"
         "#define MODELHEADER_TYPES_DECLARED\n"
+        "#if __cplusplus >= 201103L\n"
+        "#define MODELHEADER_CONST constexpr const\n"
+        "#else\n"
+        "#define MODELHEADER_CONST const\n"
+        "#endif\n"
         "\n"
         "struct modelheader_material\n"
         "{\n"
@@ -131,18 +159,18 @@ void write_preamble()
         "struct modelheader_mesh\n"
         "{\n"
         "    const char* name;\n"
-        "    struct modelheader_material* material;\n"
+        "    const struct modelheader_material* material;\n"
         "    unsigned start_index;\n"
         "    unsigned size;\n"
         "};\n"
         "\n"
         "struct modelheader_node\n"
         "{\n"
-        "    struct modelheader_mesh** meshes;\n"
+        "    const struct modelheader_mesh* const * meshes;\n"
         "    unsigned mesh_count;\n"
         "\n"
-        "    struct modelheader_node* parent;\n"
-        "    struct modelheader_node** children;\n"
+        "    const struct modelheader_node* parent;\n"
+        "    const struct modelheader_node* const* children;\n"
         "    unsigned child_count;\n"
         "\n"
         "    float transform[16];\n"
@@ -170,12 +198,12 @@ void write_node(
 
     unsigned index = node_count++;
 
-    nodes << "    {";
+    nodes << "        {";
 
     if(node->mNumMeshes > 0)
     {
         private_declaration
-            << "    struct modelheader_mesh* meshes_"
+            << "    const struct modelheader_mesh* const meshes_"
             << index << "[" << node->mNumMeshes << "];\n";
 
         private_content << "    {\n";
@@ -199,21 +227,21 @@ void write_node(
 
     if(node->mParent)
         nodes
-            << "&" << options.name_prefix << "_nodes["
+            << "&" << options.name_prefix << "_private_data.nodes["
             << node_key.at(node->mParent) << "], ";
     else nodes << "NULL, ";
 
     if(node->mNumChildren > 0)
     {
         private_declaration
-            << "    struct modelheader_node* children_"
+            << "    const struct modelheader_node* const children_"
             << index << "[" << node->mNumChildren << "];\n";
 
         private_content << "    {\n";
         for(unsigned i = 0; i < node->mNumChildren; ++i)
         {
             private_content
-                << "        &" << options.name_prefix << "_nodes["
+                << "        &" << options.name_prefix << "_private_data.nodes["
                 << node_key.at(node->mChildren[i]) << "],\n";
         }
 
@@ -287,24 +315,22 @@ void write_scene(const aiScene* scene)
     std::map<aiNode*, unsigned> node_key;
 
     vertices
-        << "float " << options.name_prefix << "_vertices[] = {\n    ";
+        << "static MODELHEADER_CONST float "
+        << options.name_prefix << "_vertices[] = {\n    ";
     indices
-        << "unsigned " << options.name_prefix << "_indices[] = {\n    ";
+        << "static MODELHEADER_CONST unsigned "
+        << options.name_prefix << "_indices[] = {\n    ";
     materials
-        << "struct modelheader_material "
+        << "static MODELHEADER_CONST struct modelheader_material "
         << options.name_prefix << "_materials[] = {\n";
     meshes
-        << "struct modelheader_mesh "
+        << "static MODELHEADER_CONST struct modelheader_mesh "
         << options.name_prefix << "_meshes[] = {\n";
     private_declaration
-        << "extern struct modelheader_node " << options.name_prefix
-        << "_nodes[];\n\n"
-        << "struct {\n";
+        << "static MODELHEADER_CONST struct {\n";
     private_content
         << "} " << options.name_prefix << "_private_data = {\n";
-    nodes
-        << "struct modelheader_node "
-        << options.name_prefix << "_nodes[] = {\n";
+    nodes << "    {\n";
 
     /* Material pass */
     for(unsigned i = 0; i < scene->mNumMaterials; ++i)
@@ -334,6 +360,8 @@ void write_scene(const aiScene* scene)
         normal_present |= inmesh->HasNormals();
         uv0_present |= inmesh->HasTextureCoords(0);
     }
+    normal_present = normal_present && !options.delete_normal;
+    uv0_present = uv0_present && !options.delete_uv;
 
     if(position_present)
     {
@@ -440,8 +468,10 @@ void write_scene(const aiScene* scene)
     indices << "\n};\n";
     materials << "};\n";
     meshes << "};\n";
-    nodes << "};\n";
-    private_content << "};\n";
+    nodes << "    }\n";
+    private_declaration
+        << "    const struct modelheader_node nodes[" << node_count << "];\n";
+    private_content << nodes.str() <<  "};\n";
 
     std::cout
         << vertices.str() << "\n" << indices.str() << "\n"
@@ -449,7 +479,9 @@ void write_scene(const aiScene* scene)
         << meshes.str() << "\n"
         << private_declaration.str()
         << private_content.str() << "\n"
-        << nodes.str() << "\n"
+        << "static MODELHEADER_CONST modelheader_node* "
+        << options.name_prefix << "_nodes = "
+        << options.name_prefix << "_private_data.nodes;\n\n"
         << "#define " << options.name_prefix
         << "_vertex_stride " << vertex_stride << "\n"
         << "#define " << options.name_prefix
