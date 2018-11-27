@@ -3,8 +3,8 @@ ModelHeader
 
 This program turns your 3D models into C header files! You can use them as-is
 and write your own loader, or also use the header-only loader compatible with
-OpenGL and OpenGL ES. Textures or materials are _not_ written to the headers;
-only mesh data. Texture file names, however, are provided.
+OpenGL and OpenGL ES. Texture data is _not_ written to the headers; only mesh
+data. Texture file names, however, are provided in the material information.
 
 # Generator
 
@@ -42,12 +42,10 @@ modelheader model_file > my_model.h
 
 By default, all primitives are pre-transformed by their transform matrices. If
 you don't want this, use the `-p` flag. If node, mesh & material info is
-unneeded, `-m` can be used to discard them.
-
-If you want a different prefix than the one automatically deduced from the file
-name, use `-n my_name_prefix`.  If some vertex attributes aren't needed, they
-can be discarded using `-dnt`, where `n` removes normals and `t` texture
-coordinates. 
+unneeded, `-m` can be used to discard them. If some vertex attributes aren't
+needed, they can be discarded using `-dnt`, where `n` removes normals and `t`
+texture coordinates. If you want a different prefix than the one automatically
+deduced from the file name, use `-n my_name_prefix`.
 
 Extensive example, where vertices aren't pre-transformed, prefix is changed to
 "spaceship" and normals are discarded:
