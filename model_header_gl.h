@@ -7,10 +7,10 @@
 #define MODELHEADER_UV0 3
 
 static inline void model_header_gl_load_impl(
-    float* vertices,
+    const float* vertices,
     unsigned vertex_stride,
     unsigned vertex_count,
-    unsigned* indices,
+    const unsigned* indices,
     unsigned index_count,
     GLuint* vbo,
     GLuint* ibo
@@ -50,9 +50,9 @@ static inline void model_header_gl_set_vertex_attribs_impl(
     int position_offset,
     int normal_offset,
     int uv0_offset,
-    GLuint* locations
+    const GLuint* locations
 ){
-    static GLuint default_locations[] = {
+    static const GLuint default_locations[] = {
         MODELHEADER_POS, 0,
         MODELHEADER_NORMAL, 1,
         MODELHEADER_UV0, 2,
@@ -104,10 +104,10 @@ static inline void model_header_gl_set_vertex_attribs_impl(
 #ifndef MODELHEADER_DISABLE_VAO
 
 static inline void model_header_gl_load_vao_impl(
-    float* vertices,
+    const float* vertices,
     unsigned vertex_stride,
     unsigned vertex_count,
-    unsigned* indices,
+    const unsigned* indices,
     unsigned index_count,
     int position_offset,
     int normal_offset,
@@ -115,7 +115,7 @@ static inline void model_header_gl_load_vao_impl(
     GLuint* vbo,
     GLuint* ibo,
     GLuint* vao,
-    GLuint* locations
+    const GLuint* locations
 ){
     glGenVertexArrays(1, vao);
     glBindVertexArray(*vao);
