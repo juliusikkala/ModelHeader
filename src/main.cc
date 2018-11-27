@@ -121,9 +121,17 @@ void write_preamble()
         "#ifndef MODELHEADER_TYPES_DECLARED\n"
         "#define MODELHEADER_TYPES_DECLARED\n"
         "\n"
+        "struct modelheader_material\n"
+        "{\n"
+        "    const char* name;\n"
+        "    const char* albedo_texture;\n"
+        "    float albedo_factor[3];\n"
+        "};\n"
+        "\n"
         "struct modelheader_mesh\n"
         "{\n"
         "    const char* name;\n"
+        "    struct modelheader_material* material;\n"
         "    unsigned start_index;\n"
         "    unsigned size;\n"
         "};\n"
@@ -257,6 +265,7 @@ void write_scene(const aiScene* scene)
 {
     std::stringstream vertices;
     std::stringstream indices;
+    std::stringstream materials;
     std::stringstream meshes;
     std::stringstream nodes;
     std::stringstream private_declaration;
@@ -265,6 +274,7 @@ void write_scene(const aiScene* scene)
     unsigned vertex_count = 0;
     unsigned vertex_stride = 0;
     unsigned index_count = 0;
+    unsigned material_count = 0;
     unsigned mesh_count = 0;
     unsigned node_count = 0;
     int position_offset = -1;
@@ -280,6 +290,9 @@ void write_scene(const aiScene* scene)
         << "float " << options.name_prefix << "_vertices[] = {\n    ";
     indices
         << "unsigned " << options.name_prefix << "_indices[] = {\n    ";
+    materials
+        << "struct modelheader_material "
+        << options.name_prefix << "_materials[] = {\n";
     meshes
         << "struct modelheader_mesh "
         << options.name_prefix << "_meshes[] = {\n";
@@ -292,6 +305,26 @@ void write_scene(const aiScene* scene)
     nodes
         << "struct modelheader_node "
         << options.name_prefix << "_nodes[] = {\n";
+
+    /* Material pass */
+    for(unsigned i = 0; i < scene->mNumMaterials; ++i)
+    {
+        aiMaterial* inmat = scene->mMaterials[i];
+        aiString name("Unnamed material");
+        aiString albedo_texture("");
+        aiColor3D albedo_factor(1.0f,1.0f,1.0f);
+
+        inmat->Get(AI_MATKEY_NAME, name);
+        inmat->Get(AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), albedo_texture);
+        inmat->Get(AI_MATKEY_COLOR_DIFFUSE, albedo_factor);
+
+        materials
+            << "    {" << escape_string(name.C_Str()) << ", "
+            << (albedo_texture.length == 0 ? "NULL" : escape_string(albedo_texture.C_Str()))
+            << ", {" << albedo_factor.r << ", " << albedo_factor.g << ", "
+            << albedo_factor.b << "}},\n";
+        material_count++;
+    }
 
     /* Vertex format pre-pass */
     for(unsigned i = 0; i < scene->mNumMeshes; ++i)
@@ -379,7 +412,9 @@ void write_scene(const aiScene* scene)
 
         /* Add this mesh */
         meshes
-            << "    {" << escape_string(inmesh->mName.C_Str()) << ", "
+            << "    {" << escape_string(inmesh->mName.C_Str()) << ", &"
+            << options.name_prefix << "_materials["
+            << inmesh->mMaterialIndex << "], "
             << start_index << ", " << size << "},\n";
     }
 
@@ -403,12 +438,14 @@ void write_scene(const aiScene* scene)
 
     vertices << "\n};\n";
     indices << "\n};\n";
+    materials << "};\n";
     meshes << "};\n";
     nodes << "};\n";
     private_content << "};\n";
 
     std::cout
         << vertices.str() << "\n" << indices.str() << "\n"
+        << materials.str() << "\n"
         << meshes.str() << "\n"
         << private_declaration.str()
         << private_content.str() << "\n"
@@ -419,6 +456,8 @@ void write_scene(const aiScene* scene)
         << "_vertex_count " << vertex_count << "\n"
         << "#define " << options.name_prefix
         << "_index_count " << index_count << "\n"
+        << "#define " << options.name_prefix
+        << "_material_count " << material_count << "\n"
         << "#define " << options.name_prefix
         << "_mesh_count " << mesh_count << "\n"
         << "#define " << options.name_prefix
